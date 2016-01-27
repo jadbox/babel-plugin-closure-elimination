@@ -11,9 +11,14 @@ function load (basename) {
 function collectPositions (ast: Object): Object {
   const collected = {};
   traverse(ast, {
-    enter (node: Object, parent: Object) {
-      if (this.isFunction()) {
-        collected[JSON.stringify(node.loc)] = extractPath(this.scope);
+    enter (path) {
+      const node = path.node;
+      if (path.isFunction()) {
+        if(node.loc) {
+          collected[JSON.stringify(node.loc)] = extractPath(path.scope);
+        } else {
+          throw new Error('Wrong transformed function. maybe wrong sourcemap?');
+        }
       }
     }
   });
@@ -27,6 +32,9 @@ function countHoisted (oldAst, newAst) {
   const keys = Object.keys(oldPositions);
   for (let i = 0; i < keys.length; i++) {
     let key = keys[i];
+    if(!newPositions[key]) {
+      throw new Error('some missed function');
+    }
     if (oldPositions[key] !== newPositions[key]) {
       total++;
     }
@@ -36,9 +44,9 @@ function countHoisted (oldAst, newAst) {
 
 function runTest (basename, numberToRemove) {
   const source = load(basename);
-  const transformedNaked = transform(source, {presets: 'es2015', plugins: ["transform-flow-strip-types"]});
+  const transformedNaked = transform(source, {plugins: ["transform-flow-strip-types"]});
   //console.log(transformedNaked.code);
-  const transformedWithPlugin = transform(source, {presets: 'es2015', plugins: [Plugin, "transform-flow-strip-types"]});
+  const transformedWithPlugin = transform(source, {plugins: [Plugin, "transform-flow-strip-types"]});
   //console.log(transformedWithPlugin.code);
   const diff = countHoisted(transformedNaked.ast, transformedWithPlugin.ast);
   diff.should.equal(numberToRemove);
